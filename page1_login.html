@@ -6,15 +6,34 @@
     <title>班书 - 登录中</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="config.js"></script>
+
     <style>
+        /* --- 极速首屏优化脚本 --- */
+        
+        /* 1. 在 Tailwind 加载前提前锁定背景色，消除白屏 */
+        body { 
+            background-color: #2563eb; /* 对应 bg-blue-600 */
+            margin: 0; 
+            /* 2. 性能黑科技：跳过视口外渲染 */
+            content-visibility: auto; 
+            /* 3. 消除移动端点击 300ms 延迟 */
+            touch-action: manipulation; 
+            /* 4. 抗锯齿字体优化 */
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* 5. 预设动画，确保 logo 脉冲在样式就位前不卡顿 */
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
         }
+
+        /* 防止某些浏览器在加载 JS 前显示未格式化的代码 */
+        [cloak] { display: none; }
     </style>
-	<script src="config.js"></script>
 </head>
-<body class="bg-blue-600 h-screen flex flex-col items-center justify-center mx-auto max-w-md shadow-xl text-white">
+<body style="background-color: #2563eb;" class="bg-blue-600 h-screen flex flex-col items-center justify-center mx-auto max-w-md shadow-xl text-white">
 
     <div class="text-center">
         <div id="logo-box" class="w-20 h-20 bg-white text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg transition-all duration-500">
@@ -58,7 +77,7 @@
             try {
                 statusText.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> 正在读取身份信息...';
                 
-                // 去后端校验此设备是否绑定过
+                // 向后端请求登录状态
                 const response = await fetch(`${API_BASE_URL}/auth/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -69,26 +88,25 @@
 
                 if (resJson.code === 200) {
                     if (resJson.data.need_binding) {
-                        // 新设备：隐藏动画，显示密码框
                         statusText.innerHTML = '';
                         logoBox.classList.remove('animate-pulse');
                         pwdBox.classList.remove('hidden');
                         pwdBox.classList.add('flex');
                     } else {
-                        // 老设备：存下真正的身份ID，直接放行进主页
+                        // 已绑定，存储 user_id 并跳转
                         localStorage.setItem('user_id', resJson.data.user_id);
                         statusText.innerHTML = `<i class="fa-solid fa-check"></i> 欢迎回来，${resJson.data.student_name}${resJson.data.relation}`;
                         setTimeout(() => { window.location.href = 'page3_api.html'; }, 800);
                     }
                 } else {
-                    statusText.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-red-300"></i> 系统错误，请重试';
+                    statusText.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-red-300"></i> 系统错误';
                 }
             } catch (error) {
-                statusText.innerHTML = '<i class="fa-solid fa-wifi text-red-300"></i> 网络连接失败，请检查后端服务';
+                statusText.innerHTML = '<i class="fa-solid fa-wifi text-red-300"></i> 网络异常，请检查后端';
             }
         }
 
-        // 验证班级邀请码 (纯请求后端，不含任何本地判断)
+        // 验证班级邀请码
         async function verifyClassCode() {
             const inputCode = document.getElementById('class-password').value.trim();
             const statusText = document.getElementById('status-text');
@@ -100,38 +118,30 @@
 
             try {
                 statusText.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 正在验证...';
-                
-                // 向 MySQL 发起校验请求
                 const response = await fetch(`${API_BASE_URL}/auth/verify-invite`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ code: inputCode })
                 });
-                
                 const resJson = await response.json();
 
                 if (response.ok && resJson.code === 200) {
-                    // 后端点头了，才允许去绑定页
-                    statusText.innerHTML = '<i class="fa-solid fa-shield-check text-green-300"></i> 验证成功，正在进入实名绑定...';
+                    statusText.innerHTML = '<i class="fa-solid fa-shield-check text-green-300"></i> 验证成功';
                     document.getElementById('password-box').classList.add('opacity-50', 'pointer-events-none');
                     setTimeout(() => { window.location.href = 'page2_bind.html'; }, 800);
                 } else {
-                    // 后端拒绝，清空输入框
                     alert(resJson.detail || "验证失败");
                     statusText.innerHTML = '';
                     document.getElementById('class-password').value = '';
-                    document.getElementById('class-password').focus();
                 }
             } catch(e) {
-                alert("网络连接异常，验证失败");
-                statusText.innerHTML = '';
+                alert("网络连接异常");
             }
         }
 
-        // 页面启动入口
         window.onload = () => {
             document.getElementById('logo-box').classList.add('animate-pulse');
-            setTimeout(checkLogin, 600);
+            setTimeout(checkLogin, 400); // 稍微缩短启动等待时间，提升体感
         };
     </script>
 </body>
