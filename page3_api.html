@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>班书 - 作业列表(防错完善版)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+	<script src="config.js"></script>
+</head>
+<body class="bg-gray-100 h-screen flex flex-col mx-auto max-w-md shadow-xl relative" onload="initApp()">
+
+    <div class="bg-blue-600 text-white px-4 py-3 flex justify-between items-center shadow-md z-10 shrink-0">
+        <div class="flex items-center gap-3"><i class="fa-solid fa-bars text-xl"></i><h1 class="text-lg font-bold">班书作业</h1></div>
+        <button id="btn-add-task" onclick="openAddTaskModal()" class="bg-white text-blue-600 px-3 py-1.5 rounded-full text-sm font-bold shadow flex items-center gap-1 transition-all"><i class="fa-solid fa-plus"></i> 新增任务</button>
+    </div>
+
+    <div class="bg-white px-4 py-2.5 flex justify-between items-center border-b border-gray-100 shrink-0 shadow-sm z-0 relative">
+        <button class="text-gray-400 hover:text-blue-600 px-3 py-1 transition-all" onclick="changeDate(-1)"><i class="fa-solid fa-chevron-left"></i></button>
+        <div onclick="openCalendar()" class="flex items-center gap-2 cursor-pointer text-gray-700 font-medium text-sm hover:bg-gray-50 hover:text-blue-600 px-4 py-1.5 rounded-xl transition-colors border border-transparent hover:border-gray-200">
+            <i class="fa-regular fa-calendar text-blue-500"></i>
+            <span id="current-date-display">加载中...</span>
+            <i class="fa-solid fa-caret-down text-gray-400 text-xs ml-1"></i>
+        </div>
+        <button id="btn-next-date" class="text-gray-400 hover:text-blue-600 px-3 py-1 transition-all" onclick="changeDate(1)"><i class="fa-solid fa-chevron-right"></i></button>
+    </div>
+
+    <div id="subject-tabs-container" class="bg-white px-2 py-3 flex gap-2 overflow-x-auto border-b shadow-sm shrink-0 no-scrollbar">
+        <div class="text-sm text-gray-400 px-2">加载科目中...</div>
+    </div>
+
+    <div id="tasks-container" class="flex-1 overflow-y-auto p-4 space-y-5"></div>
+
+    <div id="calendar-overlay" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 hidden transition-opacity">
+        <div class="bg-white rounded-2xl shadow-2xl w-11/12 max-w-[340px] p-5 transform transition-all animate-[fadeIn_0.2s_ease-out]">
+            <div class="flex justify-between items-center mb-5">
+                <button onclick="changeCalendarMonth(-1)" class="w-8 h-8 flex items-center justify-center rounded-full bg-gray-50 text-gray-500 hover:bg-blue-50 hover:text-blue-600 transition-colors"><i class="fa-solid fa-chevron-left text-sm"></i></button>
+                <h3 id="calendar-month-year" class="text-lg font-bold text-gray-800 tracking-wider">...</h3>
+                <button onclick="changeCalendarMonth(1)" class="w-8 h-8 flex items-center justify-center rounded-full bg-gray-50 text-gray-500 hover:bg-blue-50 hover:text-blue-600 transition-colors"><i class="fa-solid fa-chevron-right text-sm"></i></button>
+            </div>
+            <div class="grid grid-cols-7 gap-1 text-center text-xs font-bold text-gray-400 mb-2">
+                <div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div>
+            </div>
+            <div id="calendar-days" class="grid grid-cols-7 gap-y-2 gap-x-1 text-center text-sm"></div>
+            <div class="mt-6 flex justify-between items-center border-t border-gray-100 pt-4">
+                <button onclick="jumpToToday()" class="text-blue-600 text-sm font-medium hover:text-blue-800 transition-colors">回到今天</button>
+                <button onclick="closeCalendar()" class="px-5 py-2 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200 transition-colors">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-overlay" class="fixed inset-0 z-50 flex-col justify-end bg-black bg-opacity-60 transition-opacity hidden">
+        <div class="bg-white rounded-t-2xl shadow-2xl w-full max-h-[90vh] flex flex-col transform transition-all mt-auto mx-auto max-w-md">
+            <div class="px-5 py-4 flex justify-between items-center border-b border-gray-100 shrink-0">
+                <h3 class="text-lg font-bold text-gray-800">新增 <span id="modal-subject-name" class="text-blue-600">...</span> 作业</h3>
+                <button onclick="closeAddTaskModal()" class="text-gray-400 hover:text-gray-600 transition-colors p-1"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <div class="p-5 overflow-y-auto flex-1 space-y-5 no-scrollbar">
+                <div id="modal-tasks-container" class="space-y-3"></div>
+                <button id="modal-add-btn" onclick="addModalTaskInput()" class="w-full py-3 mt-2 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 font-medium text-sm hover:bg-gray-50 hover:text-blue-600 hover:border-blue-300 transition-all flex items-center justify-center gap-2"><i class="fa-solid fa-plus"></i> 继续添加任务 (1/5)</button>
+            </div>
+            <div class="p-4 bg-white flex gap-3 border-t border-gray-100 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] shrink-0">
+                <button onclick="closeAddTaskModal()" class="flex-1 py-3 bg-gray-50 border border-gray-200 text-gray-700 font-medium rounded-xl hover:bg-gray-100 transition-colors">取消</button>
+                <button onclick="submitNewTasks()" id="btn-submit-tasks" class="flex-[2] py-3 bg-blue-600 text-white font-medium rounded-xl shadow-md hover:bg-blue-700 transition-colors flex justify-center items-center gap-2"><span>发布作业</span></button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 🌟 防回退陷阱：强行给历史栈推入当前页
+        window.history.pushState(null, null, window.location.href);
+        // 监听用户的“物理返回键”或“浏览器后退按钮”
+        window.addEventListener('popstate', function () {
+            // 用户一旦触发后退，直接将其放逐回首页验证
+            window.location.replace('page1_login.html');
+        });
+
+        // 🌟 静态路由守卫：先检查本地有没有基础牌照
+        const storedDeviceHash = localStorage.getItem('device_hash');
+        const storedUserId = localStorage.getItem('user_id');
+        
+        // 只要缺少设备指纹，或者缺少绑定的用户 ID，统统视为非法闯入，立刻踢回首页
+        if (!storedDeviceHash || !storedUserId) {
+            window.location.replace('page1_login.html');
+        }
+        
+        const currentUserId = parseInt(storedUserId);
+
+        let subjectsList = []; 
+        let currentSubjectId = null; 
+        let currentSubjectName = "";
+        let currentDate = new Date();
+
+        // 🌟 动态路由守卫：启动时去后台查岗
+        async function initApp() {
+            renderDateText();
+            
+            try {
+                // 强制校验该用户和设备在后台是否还存活
+                const authRes = await fetch(`${API_BASE_URL}/auth/verify-auth?user_id=${currentUserId}&device_hash=${storedDeviceHash}`);
+                
+                if (!authRes.ok) {
+                    // 后台查不到人 (例如被管理员删除了记录)，清理残余缓存并打回原形
+                    localStorage.removeItem('user_id');
+                    localStorage.removeItem('device_hash'); 
+                    
+                    alert("登录状态已失效（设备可能被管理员移除），请重新验证进入班级。");
+                    window.location.replace('page1_login.html');
+                    return; // 终止后续的加载
+                }
+            } catch (error) {
+                console.error("网络连接异常，暂时跳过在线鉴权", error);
+            }
+
+            // 查岗通过后，正式开始拉取业务数据
+            fetchSubjects(); 
+        }
+
+        async function fetchSubjects() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/subjects`);
+                const resJson = await response.json();
+                if (resJson.code === 200) {
+                    subjectsList = resJson.data;
+                    if (subjectsList.length > 0) {
+                        currentSubjectId = subjectsList[0].id;
+                        currentSubjectName = subjectsList[0].name;
+                        renderSubjectTabs();
+                        fetchTasks(); 
+                    }
+                }
+            } catch (error) { console.error(error); }
+        }
+
+        function renderSubjectTabs() {
+            const container = document.getElementById('subject-tabs-container');
+            let htmlStr = '';
+            subjectsList.forEach(sub => {
+                const isActive = sub.id === currentSubjectId;
+                const activeClass = isActive ? "bg-blue-600 text-white shadow-sm" : "bg-gray-100 text-gray-600 hover:bg-gray-200";
+                htmlStr += `<button onclick="switchSubject(${sub.id}, '${sub.name}')" class="px-5 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${activeClass}">${sub.name}</button>`;
+            });
+            container.innerHTML = htmlStr;
+            document.getElementById('modal-subject-name').innerText = currentSubjectName;
+        }
+
+        function switchSubject(subId, subName) {
+            if (currentSubjectId === subId) return; 
+            currentSubjectId = subId;
+            currentSubjectName = subName;
+            renderSubjectTabs(); 
+            fetchTasks();        
+        }
+
+        function getFormatDateString(dateObj) {
+            const year = dateObj.getFullYear();
+            const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const day = String(dateObj.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        function renderDateText() {
+            const options = { month: 'long', day: 'numeric', weekday: 'long' };
+            document.getElementById('current-date-display').innerText = currentDate.toLocaleDateString('zh-CN', options);
+            updateDateControls(); 
+        }
+
+        function updateDateControls() {
+            let maxLimit = new Date();
+            maxLimit.setHours(0,0,0,0);
+            maxLimit.setDate(maxLimit.getDate() + 7);
+
+            let nextDate = new Date(currentDate);
+            nextDate.setDate(nextDate.getDate() + 1);
+            nextDate.setHours(0,0,0,0);
+
+            const btnNext = document.getElementById('btn-next-date');
+            
+            if (nextDate > maxLimit) {
+                btnNext.classList.replace('text-gray-400', 'text-gray-200');
+                btnNext.classList.remove('hover:text-blue-600', 'cursor-pointer');
+                btnNext.classList.add('cursor-not-allowed');
+                btnNext.onclick = null;
+            } else {
+                btnNext.classList.replace('text-gray-200', 'text-gray-400');
+                btnNext.classList.add('hover:text-blue-600', 'cursor-pointer');
+                btnNext.classList.remove('cursor-not-allowed');
+                btnNext.onclick = () => changeDate(1);
+            }
+        }
+
+        function changeDate(days) {
+            currentDate.setDate(currentDate.getDate() + days);
+            renderDateText();
+            fetchTasks();
+        }
+
+        // ==========================================
+        // 日历组件核心逻辑
+        // ==========================================
+        let calYear = currentDate.getFullYear();
+        let calMonth = currentDate.getMonth(); 
+        let activeDatesCache = [];
+
+        function openCalendar() {
+            document.getElementById('calendar-overlay').classList.remove('hidden');
+            calYear = currentDate.getFullYear();
+            calMonth = currentDate.getMonth();
+            renderCalendarUI();
+        }
+
+        function closeCalendar() { document.getElementById('calendar-overlay').classList.add('hidden'); }
+        function jumpToToday() { currentDate = new Date(); closeCalendar(); renderDateText(); fetchTasks(); }
+        function changeCalendarMonth(offset) {
+            calMonth += offset;
+            if (calMonth > 11) { calMonth = 0; calYear++; }
+            else if (calMonth < 0) { calMonth = 11; calYear--; }
+            renderCalendarUI();
+        }
+
+        async function renderCalendarUI() {
+            document.getElementById('calendar-month-year').innerText = `${calYear}年 ${calMonth + 1}月`;
+            const daysContainer = document.getElementById('calendar-days');
+            daysContainer.innerHTML = '<div class="col-span-7 text-gray-300 py-4"><i class="fa-solid fa-spinner fa-spin"></i></div>';
+
+            try {
+                const res = await fetch(`${API_BASE_URL}/tasks/active-dates?subject_id=${currentSubjectId}&year=${calYear}&month=${calMonth + 1}`);
+                const json = await res.json();
+                if (json.code === 200) activeDatesCache = json.data;
+            } catch(e) { console.error(e); }
+
+            daysContainer.innerHTML = '';
+            const firstDay = new Date(calYear, calMonth, 1).getDay(); 
+            const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate(); 
+
+            for(let i = 0; i < firstDay; i++) { daysContainer.innerHTML += `<div></div>`; }
+
+            const todayStr = getFormatDateString(new Date());
+            const selectedStr = getFormatDateString(currentDate);
+
+            let maxLimitDate = new Date();
+            maxLimitDate.setHours(0,0,0,0);
+            maxLimitDate.setDate(maxLimitDate.getDate() + 7);
+
+            for(let d = 1; d <= daysInMonth; d++) {
+                const dateObj = new Date(calYear, calMonth, d);
+                dateObj.setHours(0,0,0,0);
+                const dateStr = getFormatDateString(dateObj);
+                
+                const isToday = dateStr === todayStr;
+                const isSelected = dateStr === selectedStr;
+                const hasTask = activeDatesCache.includes(dateStr); 
+                const isTooFarFuture = dateObj > maxLimitDate; 
+
+                let bgClass = "text-gray-700 hover:bg-gray-100 cursor-pointer";
+                let clickAction = `onclick="selectCalendarDate(${calYear}, ${calMonth}, ${d})"`;
+
+                if (isTooFarFuture) {
+                    bgClass = "text-gray-300 bg-gray-50 opacity-50 cursor-not-allowed";
+                    clickAction = ""; 
+                } else if (isSelected) {
+                    bgClass = "bg-blue-600 text-white shadow-md font-bold hover:bg-blue-700";
+                } else if (isToday) {
+                    bgClass = "bg-blue-50 text-blue-600 font-bold border border-blue-200 hover:bg-blue-100";
+                }
+
+                let marker = '';
+                if (hasTask) {
+                    const iconColor = isSelected ? 'text-white' : 'text-green-500';
+                    marker = `<div class="absolute bottom-0 left-1/2 transform -translate-x-1/2"><i class="fa-solid fa-check text-[10px] ${iconColor}"></i></div>`;
+                }
+
+                daysContainer.innerHTML += `
+                    <div ${clickAction} class="relative rounded-xl w-10 h-10 mx-auto flex items-center justify-center transition-all ${bgClass}">
+                        <span class="${hasTask ? 'mb-1' : ''}">${d}</span>
+                        ${marker}
+                    </div>
+                `;
+            }
+        }
+
+        function selectCalendarDate(y, m, d) {
+            currentDate = new Date(y, m, d);
+            closeCalendar();                 
+            renderDateText();                
+            fetchTasks();                    
+        }
+
+        // ==========================================
+        // 渲染作业列表 
+        // ==========================================
+        async function fetchTasks() {
+            const container = document.getElementById('tasks-container');
+            container.innerHTML = '<div class="text-center text-gray-400 mt-10"><i class="fa-solid fa-spinner fa-spin text-2xl"></i><p class="mt-2 text-sm">加载中...</p></div>';
+            
+            const dateStr = getFormatDateString(currentDate);
+            try {
+                const response = await fetch(`${API_BASE_URL}/tasks?subject_id=${currentSubjectId}&target_date=${dateStr}&user_id=${currentUserId}`);
+                const resJson = await response.json();
+                if (resJson.code === 200) renderTasksDOM(resJson.data);
+                else container.innerHTML = `<div class="text-center text-red-400 mt-10">${resJson.detail || '加载失败'}</div>`;
+            } catch (error) { container.innerHTML = `<div class="text-center text-red-400 mt-10">网络请求失败</div>`; }
+        }
+
+        function renderTasksDOM(data) {
+            const container = document.getElementById('tasks-container');
+            const btnAdd = document.getElementById('btn-add-task');
+            
+            // 只有当该日允许编辑时，才显示发布按钮
+            btnAdd.style.display = data.is_editable ? 'flex' : 'none';
+
+            if (!data.tasks_groups || data.tasks_groups.length === 0) {
+                container.innerHTML = `<div class="text-center text-gray-400 mt-20 flex flex-col items-center"><i class="fa-regular fa-folder-open text-4xl mb-3 text-gray-300"></i><p>该科目这天暂时没有作业</p></div>`;
+                return;
+            }
+
+            let htmlStr = '';
+            data.tasks_groups.forEach(group => {
+                const topTask = group.top_task;
+                const hasSimilar = group.similar_tasks && group.similar_tasks.length > 0;
+                const heartColor = topTask.has_liked ? 'text-red-500' : 'text-gray-400 hover:text-red-500';
+                const heartBg = topTask.has_liked ? 'bg-red-50 px-2 py-0.5 rounded-full' : '';
+
+                // 新增：只有自己发布的且在活跃期(未锁定)的任务，才渲染修改和删除按钮
+                let topEditBtn = '';
+                let topDeleteBtn = '';
+                if (data.is_editable && !group.is_locked && topTask.publisher_id === currentUserId) {
+                    topEditBtn = `<button onclick="editTask(${topTask.id})" class="text-blue-500 hover:text-blue-700 ml-2" title="修改"><i class="fa-regular fa-pen-to-square"></i></button>`;
+                    topDeleteBtn = `<button onclick="deleteTask(${topTask.id})" class="text-red-400 hover:text-red-600 ml-3" title="删除"><i class="fa-regular fa-trash-can"></i></button>`;
+                }
+
+                if (group.is_locked || (!data.is_editable && !hasSimilar)) {
+                    htmlStr += `<div class="bg-gray-50 rounded-xl p-4 shadow-sm border border-gray-200 relative"><div class="absolute top-2 right-12 opacity-10 pointer-events-none"><i class="fa-solid fa-lock text-6xl"></i></div><div class="flex justify-between items-start mb-2"><div class="flex items-center gap-2"><i class="fa-solid fa-circle-dot text-gray-400 text-xs mt-1"></i><span class="text-xs text-gray-500">${topTask.publisher_name} · ${topTask.created_at}发布</span></div><div class="flex items-center gap-1 text-gray-400"><i class="fa-solid fa-heart"></i> <span class="text-sm font-bold">${topTask.like_count}</span></div></div><p class="text-gray-800 text-base font-medium mb-3 ml-4">${topTask.content}</p><div class="flex justify-between items-center border-t border-gray-200 pt-3 mt-2"><span class="text-xs text-green-600 flex items-center gap-1 bg-green-50 px-2 py-1 rounded font-medium"><i class="fa-solid fa-shield-check"></i> 已确认/归档</span></div></div>`;
+                } else {
+                    htmlStr += `<div class="bg-white rounded-xl p-1 shadow-sm border-l-4 border-blue-500 relative"><div class="p-3"><div class="flex justify-between items-start mb-2"><div class="flex items-center gap-2"><i class="fa-solid fa-circle-dot text-blue-500 text-xs mt-1"></i><span class="text-xs text-gray-500">${topTask.publisher_name} · ${topTask.created_at}发布 ${topEditBtn} ${topDeleteBtn}</span></div><button onclick="toggleLike(${topTask.id})" class="flex items-center gap-1 ${heartColor} ${heartBg} transition-colors"><i class="fa-solid fa-heart"></i> <span class="text-sm font-bold">${topTask.like_count}</span></button></div><p class="text-gray-800 text-base font-medium mb-3 ml-4">${topTask.content}</p><div class="flex justify-end gap-3 border-t pt-3 mt-2"><button onclick="promptLock(${topTask.id})" class="text-gray-500 hover:text-yellow-600 text-sm flex items-center gap-1"><i class="fa-solid fa-unlock"></i> 锁定</button></div></div>`;
+                    if (hasSimilar) {
+                        const groupIdStr = `similar-group-${group.group_id}`;
+                        htmlStr += `<div class="px-3 pb-3"><button onclick="toggleGroup('${groupIdStr}')" id="btn-${groupIdStr}" class="w-full bg-blue-50 text-blue-600 py-2.5 rounded-lg text-sm font-bold flex items-center justify-center gap-2 border border-dashed border-blue-200 shadow-inner"><i class="fa-solid fa-layer-group"></i><span>展开 ${group.similar_tasks.length} 个相似版本，点赞顶起</span><i class="fa-solid fa-chevron-down transition-transform duration-300" id="icon-${groupIdStr}"></i></button></div><div id="${groupIdStr}" class="hidden px-3 pb-3 space-y-3">`;
+                        group.similar_tasks.forEach(simTask => {
+                            const simHeartColor = simTask.has_liked ? 'text-red-500' : 'text-gray-400 hover:text-red-500';
+                            let simEditBtn = '';
+                            let simDeleteBtn = '';
+                            if (data.is_editable && !group.is_locked && simTask.publisher_id === currentUserId) {
+                                simEditBtn = `<button onclick="editTask(${simTask.id})" class="text-blue-500 hover:text-blue-700 ml-2" title="修改"><i class="fa-regular fa-pen-to-square"></i></button>`;
+                                simDeleteBtn = `<button onclick="deleteTask(${simTask.id})" class="text-red-400 hover:text-red-600 ml-3" title="删除"><i class="fa-regular fa-trash-can"></i></button>`;
+                            }
+                            htmlStr += `<div class="bg-gray-50 rounded-lg p-3 border border-gray-100 relative"><div class="flex justify-between items-start mb-2"><div class="text-xs text-gray-500">${simTask.publisher_name} · ${simTask.created_at} ${simEditBtn} ${simDeleteBtn}</div><button onclick="toggleLike(${simTask.id})" class="flex items-center gap-1 ${simHeartColor} transition-colors"><i class="fa-solid fa-heart"></i> <span class="text-sm font-bold">${simTask.like_count}</span></button></div><p class="text-gray-600 text-sm">${simTask.content}</p></div>`;
+                        });
+                        htmlStr += `</div>`;
+                    }
+                    htmlStr += `</div>`;
+                }
+            });
+            container.innerHTML = htmlStr;
+        }
+
+        // ==========================================
+        // 修改和删除 API 交互
+        // ==========================================
+        async function editTask(taskId) {
+            let newContent = prompt("请修正您的作业内容（最少3个字）：");
+            if (newContent === null) return; 
+            if (newContent.trim().length < 3) {
+                alert("内容不能少于 3 个字哦！");
+                return;
+            }
+            try {
+                const res = await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: currentUserId, content: newContent })
+                });
+                const resJson = await res.json();
+                if (resJson.code === 200) fetchTasks(); 
+                else alert(resJson.detail || "修改失败");
+            } catch (e) {
+                console.error(e);
+                alert("网络请求失败");
+            }
+        }
+
+        async function deleteTask(taskId) {
+            if (!confirm("确定要删除这条作业吗？删除后不可恢复哦！")) return;
+            try {
+                const res = await fetch(`${API_BASE_URL}/tasks/${taskId}?user_id=${currentUserId}`, {
+                    method: 'DELETE'
+                });
+                const resJson = await res.json();
+                if (resJson.code === 200) {
+                    fetchTasks(); 
+                } else {
+                    alert(resJson.detail || "删除失败");
+                }
+            } catch (e) {
+                console.error(e);
+                alert("网络请求失败");
+            }
+        }
+
+        async function toggleLike(taskId) { await fetch(`${API_BASE_URL}/tasks/${taskId}/like`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: currentUserId }) }); fetchTasks(); }
+        
+        // 🌟 核心修改：去掉原有的密码提示，只留文本框
+        async function promptLock(taskId) { 
+            let pwd = prompt("请输入管理密码："); 
+            if (!pwd) return; 
+            const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/lock`, { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' }, 
+                body: JSON.stringify({ admin_password: pwd }) 
+            }); 
+            const resJson = await res.json(); 
+            alert(resJson.message || resJson.detail); 
+            if (resJson.code === 200) fetchTasks(); 
+        }
+
+        function toggleGroup(groupId) { const groupDiv = document.getElementById(groupId); const icon = document.getElementById('icon-' + groupId); const btn = document.getElementById('btn-' + groupId); if (groupDiv.classList.contains('hidden')) { groupDiv.classList.remove('hidden'); icon.style.transform = 'rotate(180deg)'; btn.classList.replace('border-dashed', 'border-solid'); btn.classList.replace('bg-blue-50', 'bg-white'); } else { groupDiv.classList.add('hidden'); icon.style.transform = 'rotate(0deg)'; btn.classList.replace('border-solid', 'border-dashed'); btn.classList.replace('bg-white', 'bg-blue-50'); } }
+        
+        // ==========================================
+        // 新增作业弹窗逻辑 
+        // ==========================================
+        const MAX_TASKS = 5; let modalTaskCount = 1;
+        function openAddTaskModal() { document.getElementById('modal-overlay').classList.remove('hidden'); document.getElementById('modal-overlay').classList.add('flex'); document.getElementById('modal-tasks-container').innerHTML = `<div class="task-item relative bg-blue-50/50 p-3 rounded-xl border border-blue-100 flex items-start gap-2"><div class="mt-2 text-blue-400"><i class="fa-solid fa-circle-dot text-xs"></i></div><textarea rows="2" placeholder="请输入作业内容 (最少3个字)..." class="flex-1 px-3 py-1.5 border border-transparent rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white transition-all bg-transparent resize-none placeholder-gray-400"></textarea></div>`; modalTaskCount = 1; updateModalBtnState(); }
+        function closeAddTaskModal() { document.getElementById('modal-overlay').classList.add('hidden'); document.getElementById('modal-overlay').classList.remove('flex'); }
+        function addModalTaskInput() { if (modalTaskCount >= MAX_TASKS) return; const textareas = document.querySelectorAll('#modal-tasks-container textarea'); let isValid = true; textareas.forEach(ta => { if (ta.value.trim().length < 3) { isValid = false; ta.classList.add('border-red-400', 'bg-red-50'); ta.classList.remove('border-transparent', 'bg-transparent'); } else { ta.classList.remove('border-red-400', 'bg-red-50'); ta.classList.add('border-transparent', 'bg-transparent'); } }); if (!isValid) { alert("请先完善当前内容！最少需3个字。"); return; } modalTaskCount++; const container = document.getElementById('modal-tasks-container'); const taskDiv = document.createElement('div'); taskDiv.className = 'task-item relative bg-blue-50/50 p-3 rounded-xl border border-blue-100 flex items-start gap-2 animate-[fadeIn_0.2s_ease-out]'; taskDiv.innerHTML = `<div class="mt-2 text-blue-400"><i class="fa-solid fa-circle-dot text-xs"></i></div><textarea rows="2" placeholder="请输入作业内容..." class="flex-1 px-3 py-1.5 border border-transparent rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white transition-all bg-transparent resize-none placeholder-gray-400"></textarea><button onclick="removeModalTaskInput(this)" class="text-gray-300 hover:text-red-500 mt-1 px-1 transition-colors"><i class="fa-solid fa-trash-can"></i></button>`; container.appendChild(taskDiv); taskDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); updateModalBtnState(); }
+        function removeModalTaskInput(btn) { btn.parentElement.remove(); modalTaskCount--; updateModalBtnState(); }
+        function updateModalBtnState() { const btn = document.getElementById('modal-add-btn'); if (modalTaskCount >= MAX_TASKS) { btn.innerHTML = `<i class="fa-solid fa-check"></i> 已达到最大数量 (5/5)`; btn.classList.add('opacity-50', 'cursor-not-allowed', 'bg-gray-50'); btn.onclick = null; } else { btn.innerHTML = `<i class="fa-solid fa-plus"></i> 继续添加任务 (${modalTaskCount}/${MAX_TASKS})`; btn.classList.remove('opacity-50', 'cursor-not-allowed', 'bg-gray-50'); btn.onclick = addModalTaskInput; } }
+        async function submitNewTasks() { const textareas = document.querySelectorAll('#modal-tasks-container textarea'); let isValid = true; let tasksPayload = []; textareas.forEach(ta => { const content = ta.value.trim(); if (content.length < 3) { isValid = false; ta.classList.add('border-red-400', 'bg-red-50'); ta.classList.remove('border-transparent', 'bg-transparent'); } else { ta.classList.remove('border-red-400', 'bg-red-50'); ta.classList.add('border-transparent', 'bg-transparent'); tasksPayload.push({ content: content }); } }); if (!isValid) { alert("发布失败：每个任务至少需要输入3个字哦！"); return; } const submitBtn = document.getElementById('btn-submit-tasks'); submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 正在发布...'; submitBtn.disabled = true; const payload = { user_id: currentUserId, subject_id: currentSubjectId, target_date: getFormatDateString(currentDate), tasks: tasksPayload }; try { const response = await fetch(`${API_BASE_URL}/tasks`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); const resJson = await response.json(); if (resJson.code === 200) { closeAddTaskModal(); fetchTasks(); } else { alert(resJson.detail || "发布失败"); } } catch (e) { alert("网络错误，提交失败"); } finally { submitBtn.innerHTML = '<span>发布作业</span>'; submitBtn.disabled = false; } }
+    </script>
+</body>
+</html>

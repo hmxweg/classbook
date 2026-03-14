@@ -1,0 +1,10 @@
+# 忽略环境变量文件
+.env
+
+# 忽略 Python 缓存
+__pycache__/
+*.pyc
+
+# 忽略本地数据库文件（如果之前有残留）
+*.db
+mysql_data/

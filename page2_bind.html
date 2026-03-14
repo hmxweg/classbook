@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>班书 - 绑定身份</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+	<script src="config.js"></script>
+</head>
+<body class="bg-gray-50 h-screen flex flex-col mx-auto max-w-md shadow-xl">
+
+    <div class="px-6 py-8 bg-white border-b border-gray-100 shadow-sm shrink-0">
+        <h2 class="text-2xl font-bold text-gray-800 mb-1">绑定学生身份</h2>
+        <p class="text-sm text-gray-400">为了保障班级数据安全，请先进行实名绑定</p>
+    </div>
+
+    <div class="flex-1 overflow-y-auto p-6 space-y-6">
+        
+        <div class="space-y-3">
+            <label class="block text-sm font-bold text-gray-700">1. 搜索您的孩子</label>
+            <div class="relative">
+                <i class="fa-solid fa-magnifying-glass absolute left-4 top-3.5 text-gray-400"></i>
+                <input type="text" id="search-input" oninput="debounceSearch()" placeholder="输入学生姓名或拼音..." 
+                    class="w-full pl-10 pr-4 py-3 bg-gray-100 border-transparent rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all">
+            </div>
+            
+            <div id="search-results" class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hidden">
+                </div>
+            <div id="selected-student-view" class="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-xl flex justify-between items-center hidden">
+                <div class="flex items-center gap-2 font-bold"><i class="fa-solid fa-user-graduate"></i> <span id="display-student-name">李华</span></div>
+                <button onclick="resetSearch()" class="text-blue-400 hover:text-blue-600 text-xs underline">重新选择</button>
+            </div>
+        </div>
+
+        <div class="space-y-3" id="relation-step" style="opacity: 0.5; pointer-events: none;">
+            <label class="block text-sm font-bold text-gray-700">2. 您是孩子的？</label>
+            <div class="grid grid-cols-3 gap-3">
+                <button onclick="selectRelation('爸爸', this)" class="relation-btn py-2 border-2 border-gray-200 rounded-xl text-gray-500 font-medium hover:border-blue-300 transition-all">爸爸</button>
+                <button onclick="selectRelation('妈妈', this)" class="relation-btn py-2 border-2 border-gray-200 rounded-xl text-gray-500 font-medium hover:border-blue-300 transition-all">妈妈</button>
+                <button onclick="selectRelation('爷爷/奶奶', this)" class="relation-btn py-2 border-2 border-gray-200 rounded-xl text-gray-500 font-medium hover:border-blue-300 transition-all text-xs">爷爷/奶奶</button>
+                <button onclick="selectRelation('外公/外婆', this)" class="relation-btn py-2 border-2 border-gray-200 rounded-xl text-gray-500 font-medium hover:border-blue-300 transition-all text-xs">外公/外婆</button>
+                <button onclick="selectRelation('其他长辈', this)" class="relation-btn py-2 border-2 border-gray-200 rounded-xl text-gray-500 font-medium hover:border-blue-300 transition-all text-xs">其他长辈</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="p-4 bg-white border-t border-gray-100 shrink-0">
+        <button id="btn-submit" onclick="submitBind()" disabled 
+            class="w-full py-3.5 bg-gray-300 text-white font-bold rounded-xl shadow-md transition-all flex justify-center items-center gap-2">
+            确认绑定并进入
+        </button>
+    </div>
+
+    <script>
+        // 🌟 新增：路由守卫，防止直接通过网址跳入
+        const currentDeviceHash = localStorage.getItem('device_hash');
+        if (!currentDeviceHash) {
+            window.location.replace('page1_login.html');
+        }
+
+        let searchTimeout = null;
+        let currentStudentId = null;
+        let currentRelation = "";
+
+        // 防抖搜索
+        function debounceSearch() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(doSearch, 300);
+        }
+
+        async function doSearch() {
+            const keyword = document.getElementById('search-input').value.trim();
+            const resultsBox = document.getElementById('search-results');
+            
+            if (keyword.length === 0) {
+                resultsBox.classList.add('hidden');
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_BASE_URL}/students/search?keyword=${keyword}`);
+                const json = await res.json();
+                
+                if (json.code === 200 && json.data.length > 0) {
+                    let html = '';
+                    json.data.forEach(stu => {
+                        html += `<div onclick="selectStudent(${stu.id}, '${stu.name}')" class="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-50 last:border-0 flex justify-between items-center text-gray-700">
+                                    <span class="font-medium">${stu.name}</span>
+                                    <i class="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
+                                 </div>`;
+                    });
+                    resultsBox.innerHTML = html;
+                    resultsBox.classList.remove('hidden');
+                } else {
+                    resultsBox.innerHTML = `<div class="px-4 py-3 text-sm text-gray-400 text-center">未找到匹配的学生，请联系老师添加</div>`;
+                    resultsBox.classList.remove('hidden');
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function selectStudent(id, name) {
+            currentStudentId = id;
+            document.getElementById('search-input').parentElement.classList.add('hidden');
+            document.getElementById('search-results').classList.add('hidden');
+            
+            document.getElementById('display-student-name').innerText = name;
+            document.getElementById('selected-student-view').classList.remove('hidden');
+            
+            // 解锁第二步
+            document.getElementById('relation-step').style.opacity = '1';
+            document.getElementById('relation-step').style.pointerEvents = 'auto';
+            checkReady();
+        }
+
+        function resetSearch() {
+            currentStudentId = null;
+            document.getElementById('search-input').value = '';
+            document.getElementById('search-input').parentElement.classList.remove('hidden');
+            document.getElementById('selected-student-view').classList.add('hidden');
+            
+            // 锁定第二步
+            document.getElementById('relation-step').style.opacity = '0.5';
+            document.getElementById('relation-step').style.pointerEvents = 'none';
+            checkReady();
+        }
+
+        function selectRelation(rel, btnElement) {
+            currentRelation = rel;
+            // 移除所有按钮的激活状态
+            document.querySelectorAll('.relation-btn').forEach(btn => {
+                btn.classList.remove('border-blue-500', 'text-blue-600', 'bg-blue-50');
+                btn.classList.add('border-gray-200', 'text-gray-500');
+            });
+            // 激活当前按钮
+            btnElement.classList.remove('border-gray-200', 'text-gray-500');
+            btnElement.classList.add('border-blue-500', 'text-blue-600', 'bg-blue-50');
+            checkReady();
+        }
+
+        function checkReady() {
+            const btnSubmit = document.getElementById('btn-submit');
+            if (currentStudentId && currentRelation) {
+                btnSubmit.disabled = false;
+                btnSubmit.classList.remove('bg-gray-300');
+                btnSubmit.classList.add('bg-blue-600', 'hover:bg-blue-700');
+            } else {
+                btnSubmit.disabled = true;
+                btnSubmit.classList.add('bg-gray-300');
+                btnSubmit.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+            }
+        }
+
+        async function submitBind() {
+            const deviceHash = localStorage.getItem('device_hash');
+            if (!deviceHash) {
+                alert('设备状态异常，请返回重试');
+                window.location.replace('page1_login.html');
+                return;
+            }
+
+            const btnSubmit = document.getElementById('btn-submit');
+            btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 绑定中...';
+            btnSubmit.disabled = true;
+
+            try {
+                const res = await fetch(`${API_BASE_URL}/auth/bind`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        device_hash: deviceHash,
+                        student_id: currentStudentId,
+                        relation: currentRelation
+                    })
+                });
+                const json = await res.json();
+                
+                if (json.code === 200) {
+                    // 绑定成功，将真正的 user_id 存起来，供主页面使用
+                    localStorage.setItem('user_id', json.data.user_id);
+                    // 顺滑跳转到主列表页
+                    window.location.replace('page3_api.html');
+                } else {
+                    alert(json.detail || '绑定失败');
+                    btnSubmit.innerHTML = '确认绑定并进入';
+                    btnSubmit.disabled = false;
+                }
+            } catch (e) {
+                alert('网络连接失败');
+                btnSubmit.innerHTML = '确认绑定并进入';
+                btnSubmit.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

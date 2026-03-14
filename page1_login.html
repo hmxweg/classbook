@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>班书 - 登录中</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+	<script src="config.js"></script>
+</head>
+<body class="bg-blue-600 h-screen flex flex-col items-center justify-center mx-auto max-w-md shadow-xl text-white">
+
+    <div class="text-center">
+        <div id="logo-box" class="w-20 h-20 bg-white text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg transition-all duration-500">
+            <i class="fa-solid fa-book-open text-4xl"></i>
+        </div>
+        <h1 class="text-2xl font-bold tracking-widest mb-2">班书</h1>
+        <p class="text-blue-200 text-sm tracking-widest mb-8">家校作业协同平台</p>
+        
+        <div id="status-text" class="text-sm font-medium flex items-center justify-center gap-2 mb-4">
+            <i class="fa-solid fa-circle-notch fa-spin"></i> 正在安全检测...
+        </div>
+
+        <div id="password-box" class="hidden flex-col items-center mt-2 w-full px-8 animate-[fadeIn_0.4s_ease-out]">
+            <p class="text-xs text-blue-200 mb-4 bg-blue-700/50 py-2 px-4 rounded-lg">检测到新设备，请输入班级邀请码以验证身份</p>
+            <input type="password" id="class-password" placeholder="请输入邀请码" 
+                class="w-full px-4 py-3.5 rounded-xl text-gray-800 text-center text-sm font-bold tracking-widest focus:outline-none focus:ring-4 focus:ring-blue-400/50 transition-all mb-4 shadow-inner">
+            <button onclick="verifyClassCode()" 
+                class="w-full py-3.5 bg-white text-blue-600 font-bold rounded-xl shadow-md hover:bg-gray-50 active:scale-95 transition-all flex justify-center items-center gap-2">
+                验证并进入
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // 获取或生成设备指纹
+        function getDeviceHash() {
+            let hash = localStorage.getItem('device_hash');
+            if (!hash) {
+                hash = 'device_' + Math.random().toString(36).substr(2, 10);
+                localStorage.setItem('device_hash', hash);
+            }
+            return hash;
+        }
+
+        async function checkLogin() {
+            const deviceHash = getDeviceHash();
+            const statusText = document.getElementById('status-text');
+            const logoBox = document.getElementById('logo-box');
+            const pwdBox = document.getElementById('password-box');
+
+            try {
+                statusText.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> 正在读取身份信息...';
+                
+                // 去后端校验此设备是否绑定过
+                const response = await fetch(`${API_BASE_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ device_hash: deviceHash })
+                });
+                
+                const resJson = await response.json();
+
+                if (resJson.code === 200) {
+                    if (resJson.data.need_binding) {
+                        // 新设备：隐藏动画，显示密码框
+                        statusText.innerHTML = '';
+                        logoBox.classList.remove('animate-pulse');
+                        pwdBox.classList.remove('hidden');
+                        pwdBox.classList.add('flex');
+                    } else {
+                        // 老设备：存下真正的身份ID，直接放行进主页
+                        localStorage.setItem('user_id', resJson.data.user_id);
+                        statusText.innerHTML = `<i class="fa-solid fa-check"></i> 欢迎回来，${resJson.data.student_name}${resJson.data.relation}`;
+                        setTimeout(() => { window.location.href = 'page3_api.html'; }, 800);
+                    }
+                } else {
+                    statusText.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-red-300"></i> 系统错误，请重试';
+                }
+            } catch (error) {
+                statusText.innerHTML = '<i class="fa-solid fa-wifi text-red-300"></i> 网络连接失败，请检查后端服务';
+            }
+        }
+
+        // 验证班级邀请码 (纯请求后端，不含任何本地判断)
+        async function verifyClassCode() {
+            const inputCode = document.getElementById('class-password').value.trim();
+            const statusText = document.getElementById('status-text');
+            
+            if(!inputCode) {
+                alert("请输入邀请码！");
+                return;
+            }
+
+            try {
+                statusText.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 正在验证...';
+                
+                // 向 MySQL 发起校验请求
+                const response = await fetch(`${API_BASE_URL}/auth/verify-invite`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code: inputCode })
+                });
+                
+                const resJson = await response.json();
+
+                if (response.ok && resJson.code === 200) {
+                    // 后端点头了，才允许去绑定页
+                    statusText.innerHTML = '<i class="fa-solid fa-shield-check text-green-300"></i> 验证成功，正在进入实名绑定...';
+                    document.getElementById('password-box').classList.add('opacity-50', 'pointer-events-none');
+                    setTimeout(() => { window.location.href = 'page2_bind.html'; }, 800);
+                } else {
+                    // 后端拒绝，清空输入框
+                    alert(resJson.detail || "验证失败");
+                    statusText.innerHTML = '';
+                    document.getElementById('class-password').value = '';
+                    document.getElementById('class-password').focus();
+                }
+            } catch(e) {
+                alert("网络连接异常，验证失败");
+                statusText.innerHTML = '';
+            }
+        }
+
+        // 页面启动入口
+        window.onload = () => {
+            document.getElementById('logo-box').classList.add('animate-pulse');
+            setTimeout(checkLogin, 600);
+        };
+    </script>
+</body>
+</html>

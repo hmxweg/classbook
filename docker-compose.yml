@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app  # 【魔法在这里】：把 Windows 本地目录挂载到容器内，您在本地修改代码，容器里会热更新！
+    env_file:
+      - .env    # 【核心修改】：把 .env 文件里的 TiDB 数据库连接串注入到容器中
+    # 因为现在直连云端数据库，不再依赖本地 db 容器了
+    # depends_on:
+    #   - db
+
+  # --------------------------------------------------------
+  # 以下本地 MySQL 服务和数据卷已全面停用（注释掉），
+  # 全力拥抱 Serverless 云数据库！以后想做本地断网开发时随时解开即可。
+  # --------------------------------------------------------
+  # db:
+  #   image: mysql:8.0
+  #   restart: always
+  #   environment:
+  #     MYSQL_ROOT_PASSWORD: root_password
+  #     MYSQL_DATABASE: classbook
+  #   ports:
+  #     - "3306:3306"
+  #   volumes:
+  #     - mysql_data:/var/lib/mysql
+
+# volumes:
+#   mysql_data:
